@@ -60,3 +60,9 @@ jobs:
     - name: Hash
       if: ${{ startsWith(matrix.os, 'macos') }}
       run: cat ./main/dist/latest-mac.yml
+    - name: Upload Windows build
+      if: matrix.os == 'windows-2022'
+      uses: actions/upload-artifact@v4
+      with:
+        name: Awakened-PoE-Trade-Windows
+        path: main/dist/
