@@ -1,5 +1,7 @@
 publish:
-  - "github"
+  - provider: "github"
+    owner: "zemmeltv"
+    repo: "awakened-poe-trade"
 productName: "Awakened PoE Trade"
 npmRebuild: false
 files:

@@ -4,11 +4,12 @@ on:
   push:
     branches:
       - 'master'
-    tags-ignore:
-      - '**'
+    tags:
+      - 'v*'
     paths-ignore:
       - 'docs/**'
       - README.md
+  workflow_dispatch:
 
 jobs:
   renderer:
@@ -32,10 +33,7 @@ jobs:
 
   package:
     needs: renderer
-    strategy:
-      matrix:
-        os: [windows-2022, ubuntu-22.04, macos-14]
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-2022
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
@@ -47,21 +45,45 @@ jobs:
       working-directory: ./main
     - run: npm run build
       working-directory: ./main
-    - run: npm run package "--" -p onTagOrDraft
+    # We'll upload only the portable .exe ourselves on tag builds.
+    - run: npm run package "--" --publish never
       working-directory: ./main
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Hash
-      if: ${{ startsWith(matrix.os, 'windows') }}
       run: type .\main\dist\latest.yml
-    - name: Hash
-      if: ${{ startsWith(matrix.os, 'ubuntu') }}
-      run: cat ./main/dist/latest-linux.yml
-    - name: Hash
-      if: ${{ startsWith(matrix.os, 'macos') }}
-      run: cat ./main/dist/latest-mac.yml
+    - name: Pick portable exe
+      if: startsWith(github.ref, 'refs/tags/v')
+      shell: pwsh
+      run: |
+        $version = "${env:GITHUB_REF_NAME}".TrimStart('v')
+        $candidates = Get-ChildItem -Path .\main\dist\ -Filter "*.exe" |
+          Where-Object {
+            $_.Name -notlike "*Setup*" -and
+            $_.Name -ne "Awakened PoE Trade.exe"
+          }
+
+        $expectedName = "Awakened PoE Trade $version.exe"
+        $portable = $candidates | Where-Object { $_.Name -eq $expectedName } | Select-Object -First 1
+
+        if (-not $portable) {
+          $portable = $candidates |
+            Where-Object { $_.Name -match [regex]::Escape($version) } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+        }
+        if (-not $portable) { throw "Portable .exe not found in main/dist" }
+        "PORTABLE_EXE=$($portable.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        "Found portable: $($portable.Name)"
+    - name: Upload portable exe to GitHub Release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: ${{ env.PORTABLE_EXE }}
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Upload Windows build
-      if: matrix.os == 'windows-2022'
       uses: actions/upload-artifact@v4
       with:
         name: Awakened-PoE-Trade-Windows

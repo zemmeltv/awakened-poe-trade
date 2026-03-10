@@ -6,6 +6,8 @@ export class AppUpdater {
   private _checkedAtStartup = false
   private _info: UpdateInfo = { state: 'initial' }
 
+  private readonly _updatesEnabled = process.argv.includes('--enable-updates')
+
   public readonly noAutoUpdatesReason:
     Extract<UpdateInfo, { state: 'update-available' }>['noDownloadReason'] = null
 
@@ -21,7 +23,9 @@ export class AppUpdater {
   constructor (
     private server: ServerEvents
   ) {
-    setInterval(this.check, 16 * 60 * 60 * 1000)
+    if (this._updatesEnabled) {
+      setInterval(this.check, 16 * 60 * 60 * 1000)
+    }
 
     this.server.onEventAnyClient('CLIENT->MAIN::user-action', ({ action }) => {
       if (action === 'check-for-update') {
@@ -36,6 +40,9 @@ export class AppUpdater {
 
     if (!autoUpdater.autoDownload || process.platform === 'darwin') {
       this.noAutoUpdatesReason = 'not-supported'
+    } else if (!this._updatesEnabled) {
+      autoUpdater.autoDownload = false
+      this.noAutoUpdatesReason = 'disabled-by-flag'
     } else if (process.argv.includes('--no-updates')) {
       autoUpdater.autoDownload = false
       this.noAutoUpdatesReason = 'disabled-by-flag'
@@ -67,6 +74,7 @@ export class AppUpdater {
   }
 
   private check = async () => {
+    if (!this._updatesEnabled) return
     try {
       await autoUpdater.checkForUpdates()
     } catch {
