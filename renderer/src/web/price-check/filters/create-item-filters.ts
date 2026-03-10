@@ -142,9 +142,11 @@ export function createFilters (
       }
     }
 
-    filters.mapTier = {
-      value: item.map!.tier,
-      disabled: false
+    if (item.map!.tier) {
+      filters.mapTier = {
+        value: item.map!.tier,
+        disabled: false
+      }
     }
   } else if (item.info.refName === 'Expedition Logbook') {
     filters.searchExact = {
@@ -426,6 +428,12 @@ function createGemFilters (
 
   filters.corrupted = {
     value: item.isCorrupted
+  }
+
+  if (!item.imbuedGem && item.isCorrupted && item.gemLevel! >= 20) {
+    filters.imbuedGem = {
+      disabled: true
+    }
   }
 
   if (item.info.gem!.awakened) {
